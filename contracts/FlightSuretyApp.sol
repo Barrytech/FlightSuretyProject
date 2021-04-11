@@ -1,10 +1,13 @@
-pragma solidity ^0.4.25;
+//SPDX-License-Identifier: MIT
+pragma solidity ^0.8.3;
 
 // It's important to avoid vulnerabilities due to numeric overflow bugs
 // OpenZeppelin's SafeMath library, when used correctly, protects agains such bugs
 // More info: https://www.nccgroup.trust/us/about-us/newsroom-and-events/blog/2018/november/smart-contract-insecurity-bad-arithmetic/
 
-import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+// import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./SafeMath.sol";
+import "./FlightSuretyData.sol";
 
 /************************************************** */
 /* FlightSurety Smart Contract                      */
@@ -25,6 +28,9 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
 
     address private contractOwner;          // Account used to deploy contract
+    address payable public dataContractAddress; 
+
+    FlightSuretyData private flightData;
 
     struct Flight {
         bool isRegistered;
@@ -47,8 +53,7 @@ contract FlightSuretyApp {
     *      This is used on all state changing functions to pause the contract in 
     *      the event there is an issue that needs to be fixed
     */
-    modifier requireIsOperational() 
-    {
+    modifier requireIsOperational(){
          // Modify to call data contract's status
         require(true, "Contract is currently not operational");  
         _;  // All modifiers require an "_" which indicates where the function body will be added
@@ -57,9 +62,14 @@ contract FlightSuretyApp {
     /**
     * @dev Modifier that requires the "ContractOwner" account to be the function caller
     */
-    modifier requireContractOwner()
-    {
+    modifier requireContractOwner(){
         require(msg.sender == contractOwner, "Caller is not contract owner");
+        _;
+    }
+
+    //let's require the caller
+    modifier requireRegisteredAirlineCaller() {
+        require(true, "Only an existing airline may register an airline or participate in consensus");
         _;
     }
 
@@ -71,24 +81,22 @@ contract FlightSuretyApp {
     * @dev Contract constructor
     *
     */
-    constructor
-                                (
-                                ) 
-                                public 
-    {
+    constructor(address payable dataContract)public {
         contractOwner = msg.sender;
+        dataContractAddress = dataContract;
+        flightData = FlightSuretyApp(dataContract);
     }
 
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
 
-    function isOperational() 
-                            public 
-                            pure 
-                            returns(bool) 
-    {
+    function isOperational() public pure returns(bool) {
         return true;  // Modify to call data contract's status
+    }
+
+    function setOperatingStatus(bool mode) extern requireContractOwner returns(bool){
+        return flightData.setOperatingStatus(mode);
     }
 
     /********************************************************************************************/
@@ -100,13 +108,7 @@ contract FlightSuretyApp {
     * @dev Add an airline to the registration queue
     *
     */   
-    function registerAirline
-                            (   
-                            )
-                            external
-                            pure
-                            returns(bool success, uint256 votes)
-    {
+    function registerAirline( ) external pure returns(bool success, uint256 votes) {
         return (success, 0);
     }
 
@@ -115,41 +117,22 @@ contract FlightSuretyApp {
     * @dev Register a future flight for insuring.
     *
     */  
-    function registerFlight
-                                (
-                                )
-                                external
-                                pure
-    {
-
+    function registerFlight (string memory flight, uint256 departureTime ) external pure {
+        flightData.registerFlight(msg.sender, flight, departureTime);
+        emit flightRegistred(msg.sender, flight);
     }
     
    /**
     * @dev Called after oracle has updated flight status
     *
     */  
-    function processFlightStatus
-                                (
-                                    address airline,
-                                    string memory flight,
-                                    uint256 timestamp,
-                                    uint8 statusCode
-                                )
-                                internal
-                                pure
-    {
+    function processFlightStatus( address airline, string memory flight, uint256 timestamp, uint8 statusCode) internal pure {
+        flightData.processFlightStatus(msg.sender, flight, timestamp, statusCode);
     }
 
 
     // Generate a request for oracles to fetch flight information
-    function fetchFlightStatus
-                        (
-                            address airline,
-                            string flight,
-                            uint256 timestamp                            
-                        )
-                        external
-    {
+    function fetchFlightStatus ( address airline, string flight, uint256 timestamp) external {
         uint8 index = getRandomIndex(msg.sender);
 
         // Generate a unique key for storing the request
