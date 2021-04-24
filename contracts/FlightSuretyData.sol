@@ -142,7 +142,7 @@ contract FlightSuretyData {
      *  @dev Transfers eligible payout funds to insuree
      *
     */
-    function pay(address payable insured, uint256 amount) external requireIsOperational requireCallerAuthorized requireSufficientBalance(insured, amount) {
+    function pay(address insured, uint256 amount) external requireIsOperational requireCallerAuthorized requireSufficientBalance(insured, amount) {
         passengerBalance[insured] = passengerBalance[insured].sub(amount);
         insured.transfert(amount);
     }
